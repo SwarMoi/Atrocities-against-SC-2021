@@ -22,24 +22,113 @@ execute:
   warning: false
 ---
 
-
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
 ```{r}
-1 + 1
+library(tidyverse)
 ```
 
 You can add options to executable code like this
 
 ```{r}
-#| echo: false
-2 * 2
+# Import CSV files
+crime_data = as_tibble(read.csv(file = "data/Crime_against_SC_2021.csv", header = T))
+
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+```{r}
+census_2022_data = as_tibble(read.csv(file = "data/Census-2022.csv", header = T))
+```
+
+
+```{r}
+names(crime_data) <- c('Sl', 'State_Name', 'Arrested_male', 'Arrested_female','Arrested_trans', 'Arrested_total','CS_male','CS_female','CS_trans','CS_total',
+'Convicted_male', 'Convicted_female', 'Convicted_trans','Convicted_total', 'Discharged_male','Discharged_female','Discharged_trans','Discharged_total','Acquitted_male','Acquitted_female','Acquitted_trans','Acquitted_total')
+```
+
+```{r}
+crime_data <- crime_data %>% filter(!Sl %in% c("Total State(s)","Total Ut(s)","Total All India"))
+```
+
+```{r}
+crime_data$State_UT = "State"
+crime_data[29:36,"State_UT"] <- "UT"
+```
+
+```{r}
+crime_data <- crime_data %>% filter(!State_Name %in% c("Dadra And Nagar Haveli And Daman And Diu" ,"Ladakh"))
+census_2022_data <- census_2022_data %>% filter(!State.Name %in% c("Dadra and Nagar Haveli" ,"Daman and Diu"))
+```
+
+
+```{r}
+crime_data <- crime_data %>% arrange(State_Name)
+census_2022_data <- census_2022_data%>% arrange(State.Name)
+```
+
+```{r}
+# regenerate sequence / sl number
+crime_data$Sl <- seq(1:length(crime_data$State_Name))
+census_2022_data$Sl <- seq(1:length(census_2022_data$State.Name))
+census_2022_data <- census_2022_data %>% select("Sl", "State.Name" , "Population.in.2011", "Estimated.population.in.2022")
+```
+
+```{r}
+# Convert to numeric, gsub to remove comma's
+
+census_2022_data <- census_2022_data %>%  
+  mutate(Estimated.population.in.2022 = (as.numeric(gsub(",","",Estimated.population.in.2022))))
+
+census_2022_data <- census_2022_data %>%  
+  mutate(Population.in.2011 = (as.numeric(gsub(",","",Population.in.2011))))
+```
+
+
+```{r}
+census_2022_data <- census_2022_data %>% mutate(rate.of.increase = ((Estimated.population.in.2022-Population.in.2011)/Population.in.2011)*100)
+```
+
+```{r}
+census_2022_data <- census_2022_data %>% mutate(Estimated.population.in.2021 = (round(Estimated.population.in.2022-(Estimated.population.in.2022 * ((rate.of.increase/100)/10)))))
+```
+
+```{r}
+census_2022_data <- rename(census_2022_data, Sl = "Sl")
+```
+
+
+```{r}
+crime_data <- crime_data %>% inner_join(census_2022_data, by=c("Sl"))
+```
+
+```{r}
+# Barplot(s) for Maximum arrest rates , arrest rates per population, Gender (male vs female) 
+```
+
+```{r}
+
+# Create data
+
+p_total_arrested <-crime_data %>% 
+  arrange(desc(Arrested_total)) %>% top_n(8) %>%
+    ggplot(aes(x=reorder(State_Name, -Arrested_total), y= Arrested_total)) + 
+    geom_bar(stat = "identity",position="dodge") +
+  labs(
+    title = "Atrocities-against-SC-2021",
+    subtitle = "Total Arrest in 2021",
+    caption = "Source: https://ncrb.gov.in/en/Crime-in-India-2021",
+    x = "State",
+    y = "Total Arrests"
+  ) +
+  theme(
+    plot.title = element_text(color = "#0099f9", size = 20),
+    plot.subtitle = element_text(face = "bold"),
+    plot.caption = element_text(face = "italic"),
+    axis.title.x = element_text(color = "#0099f9", size = 15, face = "bold"),
+    axis.title.y = element_text(size = 15, face = "italic")
+  )
+
+```
+```{r}
+p_total_arrested
+
+```
+
